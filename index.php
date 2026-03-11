@@ -333,7 +333,7 @@ initSession();
   </div>
 
   <h1 class="hero-headline">
-    Digital<br>Clearance &<br><span>Document Portal</span>
+    Arellano University<br>Digital Clearance &<br><span>Document Request Management System</span>
   </h1>
 
   <p class="hero-desc">

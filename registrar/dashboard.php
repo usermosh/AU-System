@@ -184,71 +184,119 @@ function payBadge(?string $s): string {
 </div>
 
 <script>
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+// Store CSRF token as a JS variable — avoids PHP-in-JS issues
+const CSRF_TOKEN = '<?php echo csrfToken(); ?>';
+const AJAX_URL   = '<?php echo APP_URL; ?>/ajax/registrar.php';
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+}
 
 function filterTable() {
-  const f = document.getElementById('filterStatus').value;
-  document.querySelectorAll('#reqTable tbody tr').forEach(r => {
-    r.style.display = (!f || r.dataset.status === f) ? '' : 'none';
-  });
+    const f = document.getElementById('filterStatus').value;
+    document.querySelectorAll('#reqTable tbody tr').forEach(r => {
+        r.style.display = (!f || r.dataset.status === f) ? '' : 'none';
+    });
 }
 
 function showAlert(msg, type) {
-  const el = document.getElementById('pageAlert');
-  el.className = 'alert alert-' + type;
-  el.textContent = msg;
-  el.style.display = 'block';
-  el.scrollIntoView({ behavior: 'smooth' });
-  setTimeout(() => el.style.display = 'none', 6000);
+    const el = document.getElementById('pageAlert');
+    el.className = 'alert alert-' + type;
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => el.style.display = 'none', 6000);
 }
 
-async function postAction(data) {
-  data.csrf_token = '<?= csrfToken() ?>';
-  const fd = new FormData();
-  Object.entries(data).forEach(([k,v]) => fd.append(k,v));
-  const res = await fetch('<?= APP_URL ?>/ajax/registrar.php', { method: 'POST', body: fd });
-  return await res.json();
+async function sendRequest(fields) {
+    const fd = new FormData();
+    fd.append('csrf_token', CSRF_TOKEN);
+    Object.entries(fields).forEach(([k, v]) => fd.append(k, v));
+    const res = await fetch(AJAX_URL, { method: 'POST', body: fd });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        console.error('Response was not JSON:', text);
+        throw new Error('Server returned invalid response.');
+    }
 }
 
 async function verifyPayment(payId, status) {
-  const label = status === 'verified' ? 'verify' : 'reject';
-  if (!confirm(`Are you sure you want to ${label} this payment?`)) return;
-  try {
-    const data = await postAction({ action: 'verify_payment', pay_id: payId, status });
-    showAlert(data.message, data.success ? 'success' : 'error');
-    if (data.success) setTimeout(() => location.reload(), 800);
-  } catch { showAlert('Network error.', 'error'); }
+    const label = status === 'verified' ? 'verify' : 'reject';
+    if (!confirm('Are you sure you want to ' + label + ' this payment?')) return;
+    try {
+        const data = await sendRequest({
+            action: 'verify_payment',
+            pay_id: payId,
+            status: status
+        });
+        showAlert(data.message, data.success ? 'success' : 'error');
+        if (data.success) setTimeout(() => location.reload(), 800);
+    } catch (err) {
+        showAlert('Error: ' + err.message, 'error');
+        console.error(err);
+    }
 }
 
 async function updateDocStatus(reqId, status) {
-  const labels = { approved:'approve', ready_for_pickup:'mark as ready for pickup', released:'mark as released' };
-  if (!confirm(`Are you sure you want to ${labels[status] || status} this request?`)) return;
-  try {
-    const data = await postAction({ action: 'update_doc_status', request_id: reqId, status });
-    showAlert(data.message, data.success ? 'success' : 'error');
-    if (data.success) setTimeout(() => location.reload(), 800);
-  } catch { showAlert('Network error.', 'error'); }
+    const labels = {
+        approved:         'approve',
+        ready_for_pickup: 'mark as ready for pickup',
+        released:         'mark as released'
+    };
+    const label = labels[status] || status;
+    if (!confirm('Are you sure you want to ' + label + ' this request?')) return;
+
+    try {
+        const data = await sendRequest({
+            action:     'update_doc_status',
+            request_id: reqId,
+            status:     status
+        });
+        showAlert(data.message, data.success ? 'success' : 'error');
+        if (data.success) setTimeout(() => location.reload(), 800);
+    } catch (err) {
+        showAlert('Error: ' + err.message, 'error');
+        console.error(err);
+    }
 }
 
 function rejectDoc(reqId) {
-  document.getElementById('rejectReqId').value = reqId;
-  document.getElementById('rejectModal').classList.add('open');
+    document.getElementById('rejectReqId').value = reqId;
+    document.getElementById('rejectModal').classList.add('open');
 }
 
 async function confirmReject() {
-  const btn = document.getElementById('confirmRejectBtn');
-  btn.disabled = true; btn.textContent = 'Rejecting...';
-  const fd = new FormData(document.getElementById('rejectForm'));
-  fd.append('action', 'update_doc_status');
-  fd.append('status', 'rejected');
-  try {
-    const res = await fetch('<?= APP_URL ?>/ajax/registrar.php', { method: 'POST', body: fd });
-    const data = await res.json();
-    closeModal('rejectModal');
-    showAlert(data.message, data.success ? 'success' : 'error');
-    if (data.success) setTimeout(() => location.reload(), 800);
-  } catch { showAlert('Network error.', 'error'); }
-  finally { btn.disabled = false; btn.textContent = 'Confirm Rejection'; }
+    const btn    = document.getElementById('confirmRejectBtn');
+    const reason = document.querySelector('[name=rejection_reason]').value.trim();
+
+    if (!reason) {
+        alert('Please enter a rejection reason.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Rejecting...';
+
+    try {
+        const data = await sendRequest({
+            action:           'update_doc_status',
+            request_id:       document.getElementById('rejectReqId').value,
+            status:           'rejected',
+            rejection_reason: reason
+        });
+        closeModal('rejectModal');
+        showAlert(data.message, data.success ? 'success' : 'error');
+        if (data.success) setTimeout(() => location.reload(), 800);
+    } catch (err) {
+        showAlert('Error: ' + err.message, 'error');
+        console.error(err);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Confirm Rejection';
+    }
 }
 </script>
 

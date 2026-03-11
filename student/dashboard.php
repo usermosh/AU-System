@@ -97,7 +97,7 @@ function statusBadge(?string $status): string {
 <div style="background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%); border-radius: 16px; padding: 28px 32px; margin-bottom: 24px; color: #fff; position: relative; overflow: hidden;">
   <div style="position: absolute; top: -40px; right: -40px; width: 200px; height: 200px; border-radius: 50%; background: rgba(201,168,76,0.1); pointer-events: none;"></div>
   <div style="font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; color: var(--gold);">
-    Good <?= (date('H') < 12 ? 'Morning' : (date('H') < 17 ? 'Afternoon' : 'Evening')) ?>, <?= htmlspecialchars($student['first_name']) ?>!
+    Good Day, <?= htmlspecialchars($student['first_name']) ?>!
   </div>
   <div style="font-size: 13px; color: rgba(255,255,255,0.65); margin-top: 4px;">
     <?= htmlspecialchars($student['course']) ?> | Year <?= $student['year_level'] ?>
