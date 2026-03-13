@@ -30,6 +30,8 @@ $navItems = match($role) {
         ['href' => 'document_requests.php',  'icon' => '📄', 'label' => 'Document Requests'],
         ['href' => 'payments.php',           'icon' => '💳', 'label' => 'Payment Verification'],
         ['href' => 'students.php',           'icon' => '👥', 'label' => 'Students'],
+        ['href' => 'logs_dashboard.php',     'icon' => '📊', 'label' => 'Logs Dashboard'],
+        ['href' => 'logs_records.php',       'icon' => '🗄',  'label' => 'Records List'],
     ],
     'admin' => [
         ['href' => 'dashboard.php',    'icon' => '⊞', 'label' => 'Dashboard'],
@@ -37,7 +39,9 @@ $navItems = match($role) {
         ['href' => 'departments.php',  'icon' => '🏛', 'label' => 'Departments'],
         ['href' => 'clearances.php',   'icon' => '✓', 'label' => 'Clearances'],
         ['href' => 'documents.php',    'icon' => '📄', 'label' => 'Documents'],
-        ['href' => 'logs.php',         'icon' => '📋', 'label' => 'Activity Logs'],
+        ['href' => 'logs.php',           'icon' => '📋', 'label' => 'Activity Logs'],
+        ['href' => 'logs_dashboard.php', 'icon' => '📊', 'label' => 'Logs Dashboard'],
+        ['href' => 'logs_records.php',   'icon' => '🗄',  'label' => 'Records List'],
         ['href' => 'reports.php',      'icon' => '📊', 'label' => 'Reports'],
     ],
     default => []

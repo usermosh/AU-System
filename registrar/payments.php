@@ -157,6 +157,10 @@ function payBadge(?string $s): string {
                         <?php else: ?>
                             <span style="font-size:12px; color:var(--gray);">—</span>
                         <?php endif; ?>
+                        <a href="receipt.php?id=<?= $p['id'] ?>" class="btn btn-sm"
+                           style="background:#fff;border:1px solid var(--border);color:var(--navy);white-space:nowrap;margin-top:6px;display:inline-flex;align-items:center;gap:4px;">
+                            🧾 Receipt
+                        </a>
                     </td>
                 </tr>
                 <?php endforeach; ?>

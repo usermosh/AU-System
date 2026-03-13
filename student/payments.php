@@ -124,6 +124,7 @@ function reqBadge(?string $s): string {
                     <th>Submitted</th>
                     <th>Request Status</th>
                     <th>Payment Status</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -151,6 +152,12 @@ function reqBadge(?string $s): string {
                                 <?= date('M d, Y', strtotime($p['verified_at'])) ?>
                             </div>
                         <?php endif; ?>
+                    </td>
+                    <td>
+                        <a href="receipt.php?id=<?= $p['id'] ?>" class="btn btn-sm"
+                           style="background:#fff;border:1px solid var(--border);color:var(--navy);white-space:nowrap;">
+                            🧾 Receipt
+                        </a>
                     </td>
                 </tr>
                 <?php endforeach; ?>
