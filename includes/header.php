@@ -33,15 +33,12 @@ $navItems = match($role) {
         ['href' => 'logs_records.php',       'icon' => '🗄',  'label' => 'Records List'],
     ],
     'admin' => [
-        ['href' => 'dashboard.php',    'icon' => '⊞', 'label' => 'Dashboard'],
-        ['href' => 'users.php',        'icon' => '👥', 'label' => 'User Management'],
-        ['href' => 'departments.php',  'icon' => '🏛', 'label' => 'Departments'],
-        ['href' => 'clearances.php',   'icon' => '✓', 'label' => 'Clearances'],
-        ['href' => 'documents.php',    'icon' => '📄', 'label' => 'Documents'],
+        ['href' => 'dashboard.php',      'icon' => '⊞', 'label' => 'Dashboard'],
+        ['href' => 'users.php',          'icon' => '👥', 'label' => 'User Management'],
         ['href' => 'logs.php',           'icon' => '📋', 'label' => 'Activity Logs'],
         ['href' => 'logs_dashboard.php', 'icon' => '📊', 'label' => 'Logs Dashboard'],
         ['href' => 'logs_records.php',   'icon' => '🗄',  'label' => 'Records List'],
-        ['href' => 'reports.php',      'icon' => '📊', 'label' => 'Reports'],
+        ['href' => 'profile.php',        'icon' => '👤', 'label' => 'My Profile'],
     ],
     default => []
 };
@@ -388,9 +385,100 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: #f0ec
         <div class="u-role"><?= ucfirst($role) ?></div>
       </div>
     </div>
-    <a href="<?= APP_URL ?>/ajax/auth.php?action=logout_get" class="btn-logout" onclick="logout(event)">Sign Out</a>
+    <button class="btn-logout" onclick="openLogoutModal()">Sign Out</button>
   </div>
 </div>
+
+<!-- ── Logout Confirmation Modal ── -->
+<div id="logoutModal" style="
+  position:fixed; inset:0;
+  background:rgba(10,22,40,0.65);
+  z-index:9999;
+  display:none;
+  align-items:center;
+  justify-content:center;
+">
+  <div style="
+    background:#fff;
+    border-radius:18px;
+    width:92%;
+    max-width:380px;
+    box-shadow:0 24px 64px rgba(0,0,0,0.25);
+    overflow:hidden;
+    animation:modalIn 0.22s cubic-bezier(.4,0,.2,1);
+  ">
+    <!-- Modal Top -->
+    <div style="
+      background:linear-gradient(135deg,var(--navy),var(--navy-light));
+      padding:28px 28px 22px;
+      text-align:center;
+      position:relative;
+    ">
+      <div style="
+        width:56px; height:56px; border-radius:50%;
+        background:rgba(192,57,43,0.2);
+        border:2px solid rgba(192,57,43,0.4);
+        display:flex; align-items:center; justify-content:center;
+        margin:0 auto 14px;
+        font-size:26px;
+      ">🚪</div>
+      <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#fff;">
+        Sign Out
+      </div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-top:6px;">
+        <?= htmlspecialchars($name) ?> &nbsp;·&nbsp; <span style="text-transform:capitalize;"><?= $role ?></span>
+      </div>
+    </div>
+
+    <!-- Modal Body -->
+    <div style="padding:24px 28px;">
+      <p style="font-size:14px;color:var(--navy);text-align:center;margin-bottom:22px;line-height:1.6;">
+        Are you sure you want to sign out of the system?
+      </p>
+      <div style="display:flex;gap:10px;">
+        <button
+          onclick="closeLogoutModal()"
+          style="
+            flex:1; padding:11px;
+            border-radius:10px;
+            border:1.5px solid var(--border);
+            background:#fff;
+            font-family:'DM Sans',sans-serif;
+            font-size:14px; font-weight:600;
+            color:var(--navy);
+            cursor:pointer;
+            transition:all 0.2s;
+          "
+          onmouseover="this.style.background='var(--white)'"
+          onmouseout="this.style.background='#fff'"
+        >Cancel</button>
+        <button
+          id="confirmLogoutBtn"
+          onclick="confirmLogout()"
+          style="
+            flex:1; padding:11px;
+            border-radius:10px;
+            border:none;
+            background:linear-gradient(135deg,#c0392b,#e74c3c);
+            font-family:'DM Sans',sans-serif;
+            font-size:14px; font-weight:600;
+            color:#fff;
+            cursor:pointer;
+            transition:all 0.2s;
+            box-shadow:0 4px 12px rgba(192,57,43,0.3);
+          "
+        >Sign Out</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes modalIn {
+  from { opacity:0; transform:translateY(16px) scale(0.97); }
+  to   { opacity:1; transform:translateY(0)   scale(1); }
+}
+</style>
 
 <div class="main-wrap" id="mainWrap">
   <div class="topbar">
@@ -418,16 +506,35 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: #f0ec
   tick(); setInterval(tick, 1000);
 })();
 
-// Logout
-function logout(e) {
-  e.preventDefault();
-  if (confirm('Are you sure you want to sign out?')) {
-    fetch('<?= APP_URL ?>/ajax/auth.php', {
+// Logout modal
+function openLogoutModal() {
+  const m = document.getElementById('logoutModal');
+  m.style.display = 'flex';
+}
+function closeLogoutModal() {
+  document.getElementById('logoutModal').style.display = 'none';
+}
+async function confirmLogout() {
+  const btn = document.getElementById('confirmLogoutBtn');
+  btn.disabled = true;
+  btn.textContent = 'Signing out…';
+  try {
+    await fetch('<?= APP_URL ?>/ajax/auth.php', {
       method: 'POST',
       body: new URLSearchParams({action: 'logout', csrf_token: '<?= csrfToken() ?>'})
-    }).then(() => window.location.href = '<?= APP_URL ?>/index.php');
+    });
+  } finally {
+    window.location.href = '<?= APP_URL ?>/index.php';
   }
 }
+// Close on backdrop click
+document.getElementById('logoutModal').addEventListener('click', function(e) {
+  if (e.target === this) closeLogoutModal();
+});
+// Close on Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeLogoutModal();
+});
 
 // Mobile sidebar toggle
 function toggleSidebar() {
