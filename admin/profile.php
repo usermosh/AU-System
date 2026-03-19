@@ -131,7 +131,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <table class="data-table">
                     <tr>
                         <td style="font-weight:600;">System Name</td>
-                        <td>AU Digital Clearance & Document Request System</td>
+                        <td>Arellano University Document Request Management System</td>
                     </tr>
                     <tr>
                         <td style="font-weight:600;">Version</td>

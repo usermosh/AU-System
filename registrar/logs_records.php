@@ -7,10 +7,11 @@ requireRole('registrar');
 $db = getDB();
 
 // ── Filters ───────────────────────────────────────────────────────
-$search      = trim($_GET['search']    ?? '');
+$search      = trim($_GET['search']   ?? '');
 $filterType  = $_GET['doc_type']      ?? '';
 $filterStatus= $_GET['status']        ?? '';
 $filterMethod= $_GET['pay_method']    ?? '';
+$filterCourse= $_GET['course']        ?? '';
 $filterFrom  = $_GET['date_from']     ?? '';
 $filterTo    = $_GET['date_to']       ?? '';
 $perPage     = 50;
@@ -38,6 +39,10 @@ if ($filterMethod !== '') {
     $where[]  = "p.payment_method = ?";
     $params[] = $filterMethod;
 }
+if ($filterCourse !== '') {
+    $where[]  = "s.course = ?";
+    $params[] = $filterCourse;
+}
 if ($filterFrom !== '') {
     $where[]  = "DATE(dr.requested_at) >= ?";
     $params[] = $filterFrom;
@@ -57,11 +62,13 @@ $baseSQL = "
     WHERE {$whereSQL}
 ";
 
+// Count
 $cntStmt = $db->prepare("SELECT COUNT(*) {$baseSQL}");
 $cntStmt->execute($params);
 $total = (int)$cntStmt->fetchColumn();
 $pages = max(1, (int)ceil($total / $perPage));
 
+// Paginated fetch
 $stmt = $db->prepare("
     SELECT dr.*, s.first_name, s.last_name, s.student_number, s.course, s.contact_number,
            p.id AS pay_id, p.amount, p.status AS pay_status, p.payment_method, p.reference_number, p.submitted_at AS pay_submitted,
@@ -114,6 +121,7 @@ $qParams = array_filter([
     'doc_type'   => $filterType,
     'status'     => $filterStatus,
     'pay_method' => $filterMethod,
+    'course'     => $filterCourse,
     'date_from'  => $filterFrom,
     'date_to'    => $filterTo,
 ]);
@@ -122,6 +130,18 @@ $baseQuery = http_build_query($qParams);
 $docTypes  = ['TOR','Diploma','Certificate of Enrollment','Good Moral','Honorable Dismissal','Transfer Credentials','Authentication'];
 $statuses  = ['pending','payment_verification','approved','rejected','ready_for_pickup','released'];
 $payMethods= ['cash'=>'Cash','gcash'=>'GCash','maya'=>'Maya','bank_transfer'=>'Bank Transfer'];
+$courses   = [
+    'BS Computer Science',
+    'BS Information Technology',
+    'BS Nursing',
+    'BS Accountancy',
+    'BS Business Administration',
+    'BS Engineering',
+    'AB Communication',
+    'BS Education',
+    'BS Psychology',
+    'BS Criminology',
+];
 ?>
 
 <style>
@@ -143,54 +163,150 @@ $payMethods= ['cash'=>'Cash','gcash'=>'GCash','maya'=>'Maya','bank_transfer'=>'B
 .page-btn.disabled { opacity:0.4; pointer-events:none; }
 .page-info { font-size:12px; color:var(--gray); padding:0 8px; }
 
+/* Results bar */
 .results-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
 .results-count { font-size:13px; color:var(--gray); }
 .results-count strong { color:var(--navy); }
 
+/* Print button */
 .btn-print { background:#fff; border:1.5px solid #7b1fa2; color:#7b1fa2; }
 .btn-print:hover { background:#7b1fa2; color:#fff; }
 
-/* ── PRINT ─*/
+/* ── PRINT ──────────────────────────── */
 @media print {
-  @page { size: landscape; margin: 10mm; }
-  body, html { background:#fff !important; color: #000 !important; }
-  .sidebar, .topbar, .filter-bar, .pagination, .no-print, .btn, .card-header, .results-bar { display:none !important; }
-  .main-wrap { margin-left:0 !important; padding: 0 !important; }
-  .page-content { padding:0 !important; }
-  .card { border:none !important; box-shadow:none !important; }
-  .print-header { display:block !important; }
-  
-  .data-table { width: 100% !important; border-collapse: collapse !important; }
-  .data-table th, .data-table td { 
-    border: 1px solid #000 !important; 
-    padding: 6px !important; 
-    font-size: 9px !important; 
-    color: #000 !important;
-    background: transparent !important;
-  }
-  .data-table th { background: #eee !important; font-weight: bold; }
-  .badge { border: 1px solid #000 !important; color: #000 !important; background: none !important; padding: 2px 4px !important; }
-  .status-icon { display: none !important; }
+  /* hide everything except the excel table */
+  body, html { background:#fff !important; margin:0; padding:0; }
+  .sidebar, .topbar, .filter-bar, .pagination, .no-print,
+  .print-header, .results-bar, .card { display:none !important; }
+  .main-wrap { margin-left:0 !important; }
+  .page-content { padding:4px !important; }
+
+  /* show only the print table */
   .print-only { display:block !important; }
+
+  /* excel-style table */
+  .excel-print-table {
+    width:100%;
+    border-collapse:collapse;
+    font-family:Arial, sans-serif;
+    font-size:9pt;
+    color:#000;
+  }
+  .excel-print-table th {
+    background:#d9d9d9 !important;
+    color:#000 !important;
+    font-weight:700;
+    border:1px solid #000 !important;
+    padding:4px 6px;
+    text-align:left;
+    white-space:nowrap;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  .excel-print-table td {
+    border:1px solid #000 !important;
+    padding:3px 6px;
+    vertical-align:top;
+    background:#fff !important;
+  }
+  .excel-print-table tr:nth-child(even) td {
+    background:#f2f2f2 !important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  .excel-print-title {
+    font-family:Arial,sans-serif;
+    font-size:11pt;
+    font-weight:700;
+    margin-bottom:2px;
+  }
+  .excel-print-meta {
+    font-family:Arial,sans-serif;
+    font-size:8pt;
+    color:#444;
+    margin-bottom:6px;
+  }
 }
-.print-header { display:none; }
 .print-only { display:none; }
 </style>
 
-<div class="print-header print-only" style="text-align:center;padding:10px 0;border-bottom:2px solid #000;margin-bottom:15px">
-  <h2 style="font-size:20px;margin:0 0 5px 0">Arellano University — Registrar Office</h2>
-  <h3 style="font-size:14px;font-weight:400;margin:0 0 5px 0">Document Request Transaction Records</h3>
-  <p style="font-size:10px;color:#000;margin:0">
-    Generated: <?= date('F j, Y  h:i A') ?> | Total: <?= number_format($total) ?> records
-  </p>
+<!-- Print-only full table (Excel style) -->
+<?php if (!empty($allRecords)): ?>
+<div class="print-only">
+  <div style="text-align:center;padding:16px 0 10px;border-bottom:2px solid #4a0e72;margin-bottom:10px">
+    <h2 style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;margin-bottom:4px">Arellano University — Registrar Office</h2>
+    <h3 style="font-size:14px;font-weight:400;margin-bottom:4px">Document Request Transaction Records<?= $filterCourse ? ' — ' . htmlspecialchars($filterCourse) : '' ?></h3>
+    <p style="font-size:10px;color:#555;margin:0">
+      Generated: <?= date('F j, Y  h:i A') ?>
+      <?= $filterCourse ? ' | Course: ' . htmlspecialchars($filterCourse) : ' | All Courses' ?>
+      <?= $filterType   ? ' | Type: ' . htmlspecialchars($filterType) : '' ?>
+      <?= $filterStatus ? ' | Status: ' . ucfirst(str_replace('_',' ',$filterStatus)) : '' ?>
+      <?= $filterFrom   ? ' | From: ' . htmlspecialchars($filterFrom) : '' ?>
+      <?= $filterTo     ? ' | To: '   . htmlspecialchars($filterTo)   : '' ?>
+      | <?= number_format(count($allRecords)) ?> record(s)
+    </p>
+  </div>
+  <table class="excel-print-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Student Name</th>
+        <th>Student No.</th>
+        <th>Course</th>
+        <th>Document Type</th>
+        <th>Copies</th>
+        <th>Purpose</th>
+        <th>Request Status</th>
+        <th>Pay Status</th>
+        <th>Amount</th>
+        <th>Pay Method</th>
+        <th>Reference No.</th>
+        <th>Processed By</th>
+        <th>Requested At</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($allRecords as $i => $r):
+        [$sl] = docStatusBadge($r['status']);
+      ?>
+        <tr>
+          <td><?= $i + 1 ?></td>
+          <td><?= htmlspecialchars($r['first_name'] . ' ' . $r['last_name']) ?></td>
+          <td><?= htmlspecialchars($r['student_number']) ?></td>
+          <td><?= htmlspecialchars($r['course']) ?></td>
+          <td><?= htmlspecialchars($r['document_type']) ?></td>
+          <td style="text-align:center"><?= $r['copies'] ?></td>
+          <td><?= htmlspecialchars($r['purpose'] ?? '—') ?></td>
+          <td><?= $sl ?></td>
+          <td><?= $r['pay_status'] ? ucfirst($r['pay_status']) : '—' ?></td>
+          <td><?= $r['amount'] ? '₱' . number_format($r['amount'], 2) : '—' ?></td>
+          <td><?= $r['payment_method'] ? strtoupper(str_replace('_', ' ', $r['payment_method'])) : '—' ?></td>
+          <td><?= htmlspecialchars($r['reference_number'] ?? '—') ?></td>
+          <td><?= htmlspecialchars($r['processed_by_name'] ?? '—') ?></td>
+          <td><?= date('M d, Y h:i A', strtotime($r['requested_at'])) ?></td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
 </div>
+<?php endif; ?>
 
+<!-- Filter Bar -->
 <form method="GET" class="filter-bar no-print" id="filterForm">
   <div class="filter-group" style="flex:2;min-width:200px">
     <label>🔍 Search</label>
     <input type="text" name="search" class="form-control"
            placeholder="Student name, number, purpose…"
            value="<?= htmlspecialchars($search) ?>">
+  </div>
+  <div class="filter-group">
+    <label>Course</label>
+    <select name="course" class="form-control">
+      <option value="">All Courses</option>
+      <?php foreach ($courses as $c): ?>
+        <option value="<?= $c ?>" <?= $filterCourse === $c ? 'selected' : '' ?>><?= $c ?></option>
+      <?php endforeach; ?>
+    </select>
   </div>
   <div class="filter-group">
     <label>Document Type</label>
@@ -233,10 +349,14 @@ $payMethods= ['cash'=>'Cash','gcash'=>'GCash','maya'=>'Maya','bank_transfer'=>'B
   </div>
 </form>
 
-<div class="results-bar no-print">
+<!-- Results Bar -->
+<div class="results-bar">
   <div class="results-count">
     Showing <strong><?= number_format(min($offset + 1, $total)) ?>–<?= number_format(min($offset + $perPage, $total)) ?></strong>
     of <strong><?= number_format($total) ?></strong> records
+    <?php if ($search || $filterType || $filterStatus || $filterMethod || $filterCourse || $filterFrom || $filterTo): ?>
+      <span style="color:#7b1fa2;font-weight:600"> (filtered)</span>
+    <?php endif; ?>
   </div>
   <div style="display:flex;gap:8px;align-items:center">
     <a href="logs_dashboard.php" class="btn btn-sm no-print"
@@ -249,9 +369,11 @@ $payMethods= ['cash'=>'Cash','gcash'=>'GCash','maya'=>'Maya','bank_transfer'=>'B
   </div>
 </div>
 
-<div class="card no-print">
+<!-- Screen Table -->
+<div class="card">
   <div class="card-header">
-    <span class="card-title">📄 Document Request Records</span>
+    <span class="card-title">📄 Document Request Records<?= $filterCourse ? ' — ' . htmlspecialchars($filterCourse) : '' ?></span>
+    <span style="font-size:12px;color:var(--gray)"><?= number_format($total) ?> total</span>
   </div>
   <div style="overflow-x:auto">
     <table class="data-table records-table">
@@ -270,95 +392,116 @@ $payMethods= ['cash'=>'Cash','gcash'=>'GCash','maya'=>'Maya','bank_transfer'=>'B
       </thead>
       <tbody>
         <?php if (empty($records)): ?>
-          <tr><td colspan="9" style="text-align:center;padding:40px">No records found.</td></tr>
-        <?php else: foreach ($records as $r):
+          <tr>
+            <td colspan="9">
+              <div class="empty-state">
+                <div class="empty-icon">🔍</div>
+                <div class="empty-title">No records found</div>
+                <div class="empty-desc">Try adjusting your filters.</div>
+              </div>
+            </td>
+          </tr>
+        <?php else:
+          foreach ($records as $r):
             [$statLabel, $statBadge, $statIcon] = docStatusBadge($r['status']);
+            $highlight = in_array($r['status'], ['rejected']) ? 'background:rgba(192,57,43,0.03)' : '';
           ?>
-            <tr>
+            <tr style="<?= $highlight ?>">
               <td style="font-size:11px;color:var(--gray)"><?= $r['id'] ?></td>
               <td>
-                <div style="font-weight:600;font-size:13px"><?= htmlspecialchars($r['first_name'].' '.$r['last_name']) ?></div>
-                <div style="font-size:11px;color:var(--gray)"><?= $r['student_number'] ?> · <?= $r['course'] ?></div>
+                <div style="font-weight:600;font-size:13px">
+                  <?php if ($search): ?>
+                    <?= preg_replace('/(' . preg_quote(htmlspecialchars($search), '/') . ')/i',
+                        '<mark style="background:#f3e8fd;border-radius:2px;padding:0 2px">$1</mark>',
+                        htmlspecialchars($r['first_name'].' '.$r['last_name'])) ?>
+                  <?php else: ?>
+                    <?= htmlspecialchars($r['first_name'].' '.$r['last_name']) ?>
+                  <?php endif; ?>
+                </div>
+                <div style="font-size:11px;color:var(--gray)"><?= htmlspecialchars($r['student_number']) ?> · <?= htmlspecialchars($r['course']) ?></div>
+                <?php if ($r['contact_number']): ?>
+                  <div style="font-size:10px;color:var(--gray)"><?= htmlspecialchars($r['contact_number']) ?></div>
+                <?php endif; ?>
               </td>
               <td style="font-weight:600;font-size:13px;color:#4a0e72"><?= htmlspecialchars($r['document_type']) ?></td>
               <td style="text-align:center;font-weight:600"><?= $r['copies'] ?></td>
               <td>
                 <span class="badge <?= $statBadge ?>" style="display:inline-flex;align-items:center;gap:4px">
-                  <span class="status-icon"><?= $statIcon ?></span> <?= $statLabel ?>
+                  <?= $statIcon ?> <?= $statLabel ?>
                 </span>
+                <?php if ($r['rejected_at'] ?? false): ?>
+                  <div style="font-size:10px;color:var(--danger);margin-top:2px"><?= htmlspecialchars($r['rejection_reason'] ?? '') ?></div>
+                <?php endif; ?>
               </td>
               <td>
                 <?php if ($r['pay_id']): ?>
                   <?= payStatusBadge($r['pay_status']) ?>
                   <div style="font-size:11px;color:var(--gray);margin-top:3px">
-                    ₱<?= number_format($r['amount'], 2) ?> · <?= strtoupper(str_replace('_',' ', $r['payment_method'])) ?>
+                    ₱<?= number_format($r['amount'], 2) ?>
+                    · <?= strtoupper(str_replace('_',' ', $r['payment_method'])) ?>
                   </div>
-                <?php else: ?><span class="badge badge-gray">No Payment</span><?php endif; ?>
+                  <?php if ($r['reference_number']): ?>
+                    <div style="font-size:10px;font-family:monospace;color:var(--gray)"><?= htmlspecialchars($r['reference_number']) ?></div>
+                  <?php endif; ?>
+                <?php else: ?>
+                  <span class="badge badge-gray">No Payment</span>
+                <?php endif; ?>
               </td>
-              <td style="font-size:12px;color:var(--gray);max-width:160px"><?= htmlspecialchars($r['purpose'] ?? '—') ?></td>
-              <td style="font-size:12px;color:var(--gray)"><?= htmlspecialchars($r['processed_by_name'] ?? '—') ?></td>
-              <td style="font-size:12px;color:var(--gray)"><?= date('M d, Y H:i', strtotime($r['requested_at'])) ?></td>
+              <td style="font-size:12px;color:var(--gray);max-width:160px">
+                <?= htmlspecialchars($r['purpose'] ?? '—') ?>
+              </td>
+              <td style="font-size:12px;color:var(--gray)">
+                <?= htmlspecialchars($r['processed_by_name'] ?? '—') ?>
+                <?php if ($r['processed_at']): ?>
+                  <div style="font-size:10px"><?= date('M d h:i A', strtotime($r['processed_at'])) ?></div>
+                <?php endif; ?>
+              </td>
+              <td style="font-size:12px;color:var(--gray);white-space:nowrap">
+                <?= date('M d, Y', strtotime($r['requested_at'])) ?><br>
+                <span style="font-size:11px"><?= date('h:i A', strtotime($r['requested_at'])) ?></span>
+              </td>
             </tr>
-          <?php endforeach; endif; ?>
+          <?php endforeach; ?>
+        <?php endif; ?>
       </tbody>
     </table>
   </div>
 </div>
 
+<!-- Pagination -->
 <?php if ($pages > 1): ?>
 <div class="pagination no-print">
-  <?php 
-  $queryString = http_build_query(array_diff_key($_GET, ['page' => '']));
-  for($i=1; $i<=$pages; $i++): ?>
-    <a href="?<?= $queryString ?>&page=<?= $i ?>" class="page-btn <?= $i === $page ? 'active' : '' ?>"><?= $i ?></a>
+  <?php
+  $prevHref = $page > 1 ? '?' . ($baseQuery ? $baseQuery . '&' : '') . 'page=' . ($page-1) : '#';
+  $nextHref = $page < $pages ? '?' . ($baseQuery ? $baseQuery . '&' : '') . 'page=' . ($page+1) : '#';
+  $ws = max(1, $page-3); $we = min($pages, $page+3);
+  ?>
+  <a href="<?= $prevHref ?>" class="page-btn <?= $page <= 1 ? 'disabled' : '' ?>">‹</a>
+  <?php if ($ws > 1): ?>
+    <a href="?<?= $baseQuery ? $baseQuery.'&' : '' ?>page=1" class="page-btn">1</a>
+    <?php if ($ws > 2): ?><span class="page-info">…</span><?php endif; ?>
+  <?php endif; ?>
+  <?php for ($i = $ws; $i <= $we; $i++): ?>
+    <a href="?<?= $baseQuery ? $baseQuery.'&' : '' ?>page=<?= $i ?>"
+       class="page-btn <?= $i === $page ? 'active' : '' ?>"><?= $i ?></a>
   <?php endfor; ?>
+  <?php if ($we < $pages): ?>
+    <?php if ($we < $pages - 1): ?><span class="page-info">…</span><?php endif; ?>
+    <a href="?<?= $baseQuery ? $baseQuery.'&' : '' ?>page=<?= $pages ?>" class="page-btn"><?= $pages ?></a>
+  <?php endif; ?>
+  <a href="<?= $nextHref ?>" class="page-btn <?= $page >= $pages ? 'disabled' : '' ?>">›</a>
+  <span class="page-info">Page <?= $page ?> of <?= $pages ?></span>
 </div>
 <?php endif; ?>
 
-<?php if (!empty($allRecords)): ?>
-<div class="print-only">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Student Name</th>
-        <th>Stud. No.</th>
-        <th>Course</th>
-        <th>Document</th>
-        <th>Qty</th>
-        <th>Status</th>
-        <th>Payment</th>
-        <th>Amount</th>
-        <th>Purpose</th>
-        <th>Requested At</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($allRecords as $r):
-        [$sl] = docStatusBadge($r['status']);
-      ?>
-        <tr>
-          <td><?= $r['id'] ?></td>
-          <td><?= htmlspecialchars($r['first_name'].' '.$r['last_name']) ?></td>
-          <td><?= htmlspecialchars($r['student_number']) ?></td>
-          <td><?= htmlspecialchars($r['course']) ?></td>
-          <td><?= htmlspecialchars($r['document_type']) ?></td>
-          <td style="text-align:center"><?= $r['copies'] ?></td>
-          <td><?= $sl ?></td>
-          <td><?= $r['pay_status'] ? ucfirst($r['pay_status']) : 'No Payment' ?></td>
-          <td><?= $r['amount'] ? '₱'.number_format($r['amount'],2) : '—' ?></td>
-          <td><?= htmlspecialchars($r['purpose'] ?? '—') ?></td>
-          <td><?= date('Y-m-d H:i', strtotime($r['requested_at'])) ?></td>
-        </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table>
-</div>
-<?php endif; ?>
+
 
 <script>
-document.querySelectorAll('#filterForm select').forEach(s => {
-    s.addEventListener('change', () => document.getElementById('filterForm').submit());
+document.querySelector('[name="search"]').addEventListener('keypress', function(e){
+    if(e.key==='Enter') document.getElementById('filterForm').submit();
+});
+document.querySelectorAll('#filterForm select').forEach(function(s){
+    s.addEventListener('change', function(){ document.getElementById('filterForm').submit(); });
 });
 </script>
 

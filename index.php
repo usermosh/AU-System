@@ -8,7 +8,7 @@ initSession();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AU Digital Clearance System — Login</title>
+<title>Arellano University Document Request Management System — Login</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -333,7 +333,7 @@ initSession();
   </div>
 
   <h1 class="hero-headline">
-    Arellano University<br>Digital Clearance &<br><span>Document Request Management System</span>
+    Arellano University<br><span>Document Request Management System</span>
   </h1>
 
   <p class="hero-desc">
