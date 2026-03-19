@@ -14,11 +14,11 @@ $roleInfo = $roleLabels[$role] ?? ['label' => 'Portal', 'color' => '#555'];
 // Role-specific nav items
 $navItems = match($role) {
     'student' => [
-        ['href' => 'dashboard.php',         'icon' => '⊞', 'label' => 'Dashboard'],
-        ['href' => 'clearance.php',         'icon' => '✓', 'label' => 'My Clearance'],
+        ['href' => 'dashboard.php',          'icon' => '⊞', 'label' => 'Dashboard'],
+        ['href' => 'clearance.php',          'icon' => '✓', 'label' => 'My Clearance'],
         ['href' => 'document_requests.php', 'icon' => '📄', 'label' => 'Document Requests'],
         ['href' => 'payments.php',          'icon' => '💳', 'label' => 'Payments'],
-        ['href' => 'profile.php',           'icon' => '👤', 'label' => 'My Profile'],
+        ['href' => 'profile.php',            'icon' => '👤', 'label' => 'My Profile'],
     ],
     'department' => [
         ['href' => 'dashboard.php',   'icon' => '⊞', 'label' => 'Dashboard'],
@@ -55,6 +55,9 @@ $navItems = match($role) {
 <title><?= htmlspecialchars($pageTitle ?? 'Dashboard') ?> — AU Clearance System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -389,7 +392,7 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: #f0ec
         <div class="u-role"><?= ucfirst($role) ?></div>
       </div>
     </div>
-    <a href="<?= APP_URL ?>/ajax/auth.php?action=logout_get" class="btn-logout" onclick="logout(event)">Sign Out</a>
+    <a href="#" class="btn-logout" onclick="logout(event)">Sign Out</a>
   </div>
 </div>
 
@@ -405,9 +408,7 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: #f0ec
     </div>
   </div>
   <div class="page-content">
-<?php
-// header.php ends here — footer.php closes tags
-?>
+
 <script>
 // Live clock
 (function(){
@@ -419,15 +420,29 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: #f0ec
   tick(); setInterval(tick, 1000);
 })();
 
-// Logout
 function logout(e) {
   e.preventDefault();
-  if (confirm('Are you sure you want to sign out?')) {
-    fetch('<?= APP_URL ?>/ajax/auth.php', {
-      method: 'POST',
-      body: new URLSearchParams({action: 'logout', csrf_token: '<?= csrfToken() ?>'})
-    }).then(() => window.location.href = '<?= APP_URL ?>/index.php');
-  }
+  
+  Swal.fire({
+    title: 'Sign Out?',
+    text: "Are you sure you want to sign out??",
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonColor: '#0a1628',
+    cancelButtonColor: '#c0392b',
+    confirmButtonText: 'Yes, sign out!',
+    cancelButtonText: 'Cancel'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      fetch('<?= APP_URL ?>/ajax/auth.php', {
+        method: 'POST',
+        body: new URLSearchParams({
+          action: 'logout', 
+          csrf_token: '<?= csrfToken() ?>'
+        })
+      }).then(() => window.location.href = '<?= APP_URL ?>/index.php');
+    }
+  });
 }
 
 // Mobile sidebar toggle
