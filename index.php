@@ -337,7 +337,7 @@ initSession();
   </h1>
 
   <p class="hero-desc">
-    A centralized, role-based web system automating graduation clearance processing and official document requests for students, departments, and registrar personnel.
+A centralized, role-based web system automating official document requests and processing for students, departments, and registrar personnel.
   </p>
 
   <div class="feature-pills">
@@ -347,7 +347,7 @@ initSession();
     </div>
     <div class="pill">
       <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/></svg>
-      Real-time Tracking
+      Hybrid Verification
     </div>
     <div class="pill">
       <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>
