@@ -7,7 +7,7 @@ requireRole('student');
 $db = getDB();
 $studentId = $_SESSION['student_id'];
 
-// Student info
+// 1. Student info
 $stmt = $db->prepare("
     SELECT s.*, u.email FROM students s
     JOIN users u ON u.id = s.user_id
@@ -16,7 +16,7 @@ $stmt = $db->prepare("
 $stmt->execute([$studentId]);
 $student = $stmt->fetch();
 
-// Active clearance
+// 2. Active clearance
 $stmt2 = $db->prepare("
     SELECT c.*,
            COUNT(cs.id) as total_depts,
@@ -31,7 +31,7 @@ $stmt2 = $db->prepare("
 $stmt2->execute([$studentId]);
 $clearance = $stmt2->fetch();
 
-// Clearance per-dept status
+// 3. Clearance per-dept status
 $deptStatuses = [];
 if ($clearance) {
     $stmt3 = $db->prepare("
@@ -45,15 +45,18 @@ if ($clearance) {
     $deptStatuses = $stmt3->fetchAll();
 }
 
-// Recent document requests
+// 4. Recent document requests (UPDATED SQL to include Payment Method and Amount)
 $stmt4 = $db->prepare("
-    SELECT * FROM document_requests WHERE student_id = ?
-    ORDER BY requested_at DESC LIMIT 5
+    SELECT dr.*, p.payment_method, p.amount as paid_amount, p.status as pay_status
+    FROM document_requests dr
+    LEFT JOIN payments p ON p.document_request_id = dr.id
+    WHERE dr.student_id = ?
+    ORDER BY dr.requested_at DESC LIMIT 5
 ");
 $stmt4->execute([$studentId]);
 $recentDocs = $stmt4->fetchAll();
 
-// Counts
+// 5. Counts
 $stmt5 = $db->prepare("SELECT COUNT(*) FROM document_requests WHERE student_id = ?");
 $stmt5->execute([$studentId]);
 $totalDocs = $stmt5->fetchColumn();
@@ -75,8 +78,16 @@ $pageTitle  = 'Student Dashboard';
 $activeNav  = 'dashboard.php';
 require_once __DIR__ . '/../includes/header.php';
 
-function statusBadge(?string $status): string {
+// UPDATED statusBadge to handle Online Payment Logic
+function statusBadge(?string $status, string $method = 'cash'): string {
     if (!$status) return '<span class="badge badge-gray">Pending</span>';
+    
+    $method = strtolower($method);
+    // If it's an online payment and currently verifying, display as "Approved" to the student
+    if (in_array($method, ['gcash', 'maya', 'bank_transfer']) && $status === 'payment_verification') {
+        $status = 'approved';
+    }
+
     return match($status) {
         'cleared'              => '<span class="badge badge-success">Cleared</span>',
         'deficiency'           => '<span class="badge badge-danger">Deficiency</span>',
@@ -93,7 +104,6 @@ function statusBadge(?string $status): string {
 }
 ?>
 
-<!-- Welcome Banner -->
 <div style="background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%); border-radius: 16px; padding: 28px 32px; margin-bottom: 24px; color: #fff; position: relative; overflow: hidden;">
   <div style="position: absolute; top: -40px; right: -40px; width: 200px; height: 200px; border-radius: 50%; background: rgba(201,168,76,0.1); pointer-events: none;"></div>
   <div style="font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; color: var(--gold);">
@@ -106,7 +116,6 @@ function statusBadge(?string $status): string {
   </div>
 </div>
 
-<!-- Stats -->
 <div class="stats-grid">
   <div class="stat-card" style="--accent-color: var(--success);">
     <div class="stat-icon">✅</div>
@@ -130,10 +139,8 @@ function statusBadge(?string $status): string {
   </div>
 </div>
 
-<!-- Main Grid -->
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
 
-  <!-- Clearance Status Card -->
   <div class="card">
     <div class="card-header">
       <span class="card-title">🎓 Clearance Status</span>
@@ -184,7 +191,6 @@ function statusBadge(?string $status): string {
     </div>
   </div>
 
-  <!-- Recent Document Requests -->
   <div class="card">
     <div class="card-header">
       <span class="card-title">📄 Recent Document Requests</span>
@@ -196,8 +202,9 @@ function statusBadge(?string $status): string {
           <thead>
             <tr>
               <th>Document</th>
-              <th>Date</th>
+              <th>Payment</th>
               <th>Status</th>
+              <th>Date</th>
             </tr>
           </thead>
           <tbody>
@@ -205,10 +212,18 @@ function statusBadge(?string $status): string {
               <tr>
                 <td>
                   <div style="font-weight: 600; font-size: 13px;"><?= htmlspecialchars($doc['document_type']) ?></div>
-                  <div style="font-size: 11px; color: var(--gray);"><?= $doc['copies'] ?> cop<?= $doc['copies'] > 1 ? 'ies' : 'y' ?></div>
+                  <div style="font-size: 11px; color: var(--gray);"><?= $doc['copies'] ?> copy/ies · <span style="font-style:italic;"><?= htmlspecialchars($doc['purpose'] ?? '—') ?></span></div>
                 </td>
+                <td>
+                    <div style="font-size: 12px; font-weight: 600; color: #0ca678;">
+                        PAID ₱<?= number_format($doc['paid_amount'] ?? 0, 2) ?>
+                    </div>
+                    <div style="font-size: 10px; color: var(--gray); text-transform: uppercase;">
+                        <?= htmlspecialchars($doc['payment_method'] ?? 'CASH') ?>
+                    </div>
+                </td>
+                <td><?= statusBadge($doc['status'], $doc['payment_method'] ?? 'cash') ?></td>
                 <td style="font-size: 12px; color: var(--gray);"><?= date('M d, Y', strtotime($doc['requested_at'])) ?></td>
-                <td><?= statusBadge($doc['status']) ?></td>
               </tr>
             <?php endforeach; ?>
           </tbody>
@@ -225,7 +240,6 @@ function statusBadge(?string $status): string {
 
 </div>
 
-<!-- Apply Clearance Modal -->
 <div class="modal-overlay" id="clearanceModal">
   <div class="modal-box">
     <div class="modal-header">
