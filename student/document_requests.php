@@ -8,17 +8,18 @@ $db = getDB();
 $studentId = $_SESSION['student_id'];
 
 $docFees = [
-    'TOR'                       => 150.00,
-    'Diploma'                   => 500.00,
-    'Certificate of Enrollment' => 50.00,
-    'Good Moral'                => 100.00,
-    'Honorable Dismissal'       => 150.00,
-    'Transfer Credentials'      => 200.00,
-    'Authentication'            => 50.00
+    'TOR'                        => 150.00,
+    'Diploma'                    => 500.00,
+    'Certificate of Enrollment'  => 50.00,
+    'Good Moral'                 => 100.00,
+    'Honorable Dismissal'        => 150.00,
+    'Transfer Credentials'       => 200.00,
+    'Authentication'             => 50.00
 ];
 
 $stmt = $db->prepare("
-    SELECT dr.*, p.id as payment_id, p.status as payment_status, p.amount as paid_amount
+    SELECT dr.*, p.id as payment_id, p.status as payment_status, p.amount as paid_amount, 
+           p.payment_method, p.reference_number
     FROM document_requests dr
     LEFT JOIN payments p ON p.document_request_id = dr.id
     WHERE dr.student_id = ?
@@ -31,15 +32,22 @@ $pageTitle = 'Document Requests';
 $activeNav = 'document_requests.php';
 require_once __DIR__ . '/../includes/header.php';
 
-function statusBadge(string $status): string {
+// --- HYBRID STATUS LOGIC ---
+function statusBadge(string $status, string $method = ''): string {
+    $isOnline = in_array($method, ['gcash', 'maya', 'bank_transfer']);
+    
+    if ($isOnline && $status === 'payment_verification') {
+        return '<span class="badge badge-success">Approved</span>';
+    }
+
     return match($status) {
         'pending'              => '<span class="badge badge-warning">Pending</span>',
         'payment_verification' => '<span class="badge badge-info">Payment Verification</span>',
-        'approved'             => '<span class="badge badge-success">Approved</span>',
-        'rejected'             => '<span class="badge badge-danger">Rejected</span>',
-        'ready_for_pickup'     => '<span class="badge badge-purple">Ready for Pickup</span>',
-        'released'             => '<span class="badge badge-success">Released</span>',
-        default                => '<span class="badge badge-gray">' . ucfirst($status) . '</span>',
+        'approved'              => '<span class="badge badge-success">Approved</span>',
+        'rejected'              => '<span class="badge badge-danger">Rejected</span>',
+        'ready_for_pickup'      => '<span class="badge badge-purple">Ready for Pickup</span>',
+        'released'              => '<span class="badge badge-success">Released</span>',
+        default                 => '<span class="badge badge-gray">' . ucfirst($status) . '</span>',
     };
 }
 ?>
@@ -73,7 +81,6 @@ function statusBadge(string $status): string {
         </thead>
         <tbody>
           <?php foreach ($requests as $i => $r): 
-             // Calculate expected total for existing pending requests
              $basePrice = $docFees[$r['document_type']] ?? 0;
              $totalDue = $basePrice * $r['copies'];
           ?>
@@ -83,22 +90,34 @@ function statusBadge(string $status): string {
               <td><?= $r['copies'] ?></td>
               <td style="font-size: 12px; color: var(--gray); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= htmlspecialchars($r['purpose'] ?: '—') ?></td>
               <td style="font-size: 12px; color: var(--gray);"><?= date('M d, Y', strtotime($r['requested_at'])) ?></td>
+              
               <td>
                 <?php if ($r['payment_id']): ?>
-                  <?php if ($r['payment_status'] === 'verified'): ?>
-                    <span class="badge badge-success">Paid ₱<?= number_format($r['paid_amount'], 2) ?></span>
-                  <?php elseif ($r['payment_status'] === 'rejected'): ?>
+                  <?php 
+                    $displayPayStatus = $r['payment_status'];
+                    $isOnline = in_array($r['payment_method'], ['gcash', 'maya', 'bank_transfer']);
+                    if ($isOnline) { $displayPayStatus = 'verified'; } // Auto-Paid logic
+                  ?>
+
+                  <?php if ($displayPayStatus === 'verified'): ?>
+                    <div class="badge badge-success" style="display:inline-block; margin-bottom:4px;">PAID ₱<?= number_format($r['paid_amount'], 2) ?></div>
+                    <div style="font-size: 10px; color: var(--gray);"><?= strtoupper(str_replace('_',' ', $r['payment_method'])) ?></div>
+                  <?php elseif ($displayPayStatus === 'rejected'): ?>
                     <span class="badge badge-danger">Payment Rejected</span>
                   <?php else: ?>
-                    <span class="badge badge-warning">Verifying</span>
+                    <div class="badge badge-warning" style="display:inline-block; margin-bottom:4px;">VERIFYING</div>
+                    <div style="font-size: 10px; color: var(--gray);"><?= strtoupper(str_replace('_',' ', $r['payment_method'])) ?></div>
                   <?php endif; ?>
+
                 <?php elseif ($r['status'] === 'pending'): ?>
-                  <button class="btn btn-warning btn-sm" onclick="openPayment(<?= $r['id'] ?>, <?= $totalDue ?>)">Submit Payment (₱<?= number_format($totalDue, 2) ?>)</button>
+                  <button class="btn btn-warning btn-sm" onclick="openPayment(<?= $r['id'] ?>, <?= $totalDue ?>)">Submit Payment</button>
                 <?php else: ?>
                   <span class="badge badge-gray">—</span>
                 <?php endif; ?>
               </td>
-              <td><?= statusBadge($r['status']) ?></td>
+
+              <td><?= statusBadge($r['status'], $r['payment_method'] ?? '') ?></td>
+
               <td>
                 <?php if ($r['rejection_reason']): ?>
                   <button class="btn btn-sm" style="background:#f5f5f5; color:#555;" onclick="showRemark('<?= htmlspecialchars(addslashes($r['rejection_reason'])) ?>')">Reason</button>
@@ -146,15 +165,12 @@ function statusBadge(string $status): string {
             <input type="text" class="form-control" name="purpose" placeholder="e.g. Employment, Scholarship">
           </div>
         </div>
-        
         <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ddd;">
             <div style="display: flex; justify-content: space-between; font-weight: 600;">
                 <span>Total Estimated Fee:</span>
                 <span id="totalFeeLabel" style="color: #2b8a3e;">₱0.00</span>
             </div>
         </div>
-
-        <p style="font-size: 11px; color: var(--gray);">⚠ Note: Final amount will be verified by the Registrar. Keep your proof of payment.</p>
       </form>
     </div>
     <div class="modal-footer">
@@ -174,15 +190,13 @@ function statusBadge(string $status): string {
       <form id="paymentForm">
         <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
         <input type="hidden" name="request_id" id="payRequestId">
-        
         <div style="text-align: center; margin-bottom: 15px; background: #e7f5ff; padding: 10px; border-radius: 8px;">
             <div style="font-size: 12px; color: #1971c2;">Amount to Pay:</div>
             <div id="paymentTotalDue" style="font-size: 24px; font-weight: 700; color: #1971c2;">₱0.00</div>
         </div>
-
         <div class="form-group">
           <label>Actual Amount Paid (₱) *</label>
-          <input type="number" class="form-control" name="amount" id="payAmountInput" step="0.01" min="1" required placeholder="0.00">
+          <input type="number" class="form-control" name="amount" id="payAmountInput" step="0.01" min="1" required>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -196,12 +210,8 @@ function statusBadge(string $status): string {
           </div>
           <div class="form-group">
             <label>Reference Number</label>
-            <input type="text" class="form-control" name="reference_number" placeholder="OR No. / Ref No.">
+            <input type="text" class="form-control" name="reference_number" placeholder="OR No. / Ref No. (Optional)">
           </div>
-        </div>
-        <div class="form-group">
-          <label>Notes / Proof Details</label>
-          <input type="text" class="form-control" name="proof_notes" placeholder="e.g. GCash receipt #123">
         </div>
       </form>
     </div>
@@ -228,22 +238,19 @@ function statusBadge(string $status): string {
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-// Calculation for New Request
 function calcNewRequestFee() {
     const select = document.getElementById('docTypeSelect');
     const copies = document.getElementById('docCopiesInput').value || 0;
     const selectedOption = select.options[select.selectedIndex];
     const price = selectedOption.getAttribute('data-price') || 0;
-    
     const total = price * copies;
     document.getElementById('totalFeeLabel').textContent = '₱' + total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
-// Payment Modal Logic
 function openPayment(reqId, amount) {
   document.getElementById('payRequestId').value = reqId;
   document.getElementById('paymentTotalDue').textContent = '₱' + amount.toLocaleString(undefined, {minimumFractionDigits: 2});
-  document.getElementById('payAmountInput').value = amount; // Auto-fill actual input
+  document.getElementById('payAmountInput').value = amount;
   openModal('paymentModal');
 }
 
